@@ -11,12 +11,31 @@ from torchaudio import transforms
 
 class AudioDataset(torch.utils.data.Dataset):
 
-    def __init__(self, data_path, am_path, gender = "female", phoneme_idx = 4, am_idx = 1, MAX_LEN = 44100 * 2):
+    def __init__(self, data_path, am_path, gender = "female", phoneme_idx = 4, am_idx = 1, MAX_LEN = 44100 * 2, partition = "train"):
+        """
+        :param data_path: the root path of phonemes
+        :param am_path: the path of am (.csv)
+        :param gender: female or male
+        :param phoneme_idx: the phoneme index
+        :param am_idx: the index of target AM, should be int within [1, 96]
+        :param MAX_LEN: max length of voice seq, if less, pad, if more, slice
+        :param partition: train / val1 / val2 / test
+        """
 
         self.MAX_LEN = MAX_LEN
         # get phoneme list
         self.target_phoneme_path = "/".join([data_path, gender, str(int(phoneme_idx))])
-        self.phoneme_list = os.listdir(self.target_phoneme_path)
+        phoneme_list = sorted(os.listdir(self.target_phoneme_path))
+        length = len(phoneme_list)
+        if partition == "train":
+            self.phoneme_list = phoneme_list[:int(0.7 * length)]
+        elif partition == "val1":
+            self.phoneme_list = phoneme_list[int(0.7 * length):int(0.8 * length)]
+        elif partition == "val2":
+            self.phoneme_list = phoneme_list[int(0.8 * length):int(0.9 * length)]
+        elif partition == "test":
+            self.phoneme_list = phoneme_list[int(0.9 * length):]
+
         self.length = len(self.phoneme_list)
 
         # get_am data
@@ -55,8 +74,12 @@ class AudioDataset(torch.utils.data.Dataset):
         item_full_path = "/".join([self.target_phoneme_path, item_filename])
         phoneme = np.load(item_full_path)
 
-        person_id = int(item_filename.split("_")[0][1:])
-        target_am = self.am_data[self.am_data["ID"] == person_id].values[0][-1]
+        person_id = int(item_filename.split("_")[0][1:7])
+        try:
+            target_am = self.am_data[self.am_data["ID"] == person_id].values[0][-1]
+        except:
+            print("person id =", person_id)
+            target_am = 0.
 
         # padding
         phoneme = self.padding(phoneme)
@@ -71,16 +94,16 @@ class AudioDataset(torch.utils.data.Dataset):
 
 if __name__ == "__main__":
     default_root_path = "D:/File/study/CMU/11785/project/penstate_data/extract_phoneme"
-    gender = "female"
-    phoneme_idx = 5
+    gender = "female_processed"
+    phoneme_idx = 10
     am_path = "D:/File/study/CMU/11785/project/penstate_data/AMs_unnormalized.csv"
-    am_idx = 10
+    am_idx = 20
     MAX_LEN = 44100 * 3
     batch_size = 64
 
     train_data = AudioDataset(data_path=default_root_path,
                               am_path = am_path,
-                              gender = gender, phoneme_idx = phoneme_idx, am_idx = am_idx, MAX_LEN = MAX_LEN)
+                              gender = gender, phoneme_idx = phoneme_idx, am_idx = am_idx, MAX_LEN = MAX_LEN, partition="val1")
 
     train_loader = torch.utils.data.DataLoader(train_data, num_workers=0,
                                                batch_size=batch_size)
@@ -91,4 +114,4 @@ if __name__ == "__main__":
     for i, data in enumerate(train_loader):
         phoneme, target_am = data
         print(phoneme.shape, target_am.shape)
-        break
+        # break
