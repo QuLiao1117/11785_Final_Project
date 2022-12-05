@@ -82,7 +82,7 @@ class AudioDataset(torch.utils.data.Dataset):
             phoneme = np.pad(phoneme, ((0, 0), (0, MAX_LEN - len(phoneme[0]))), 'symmetric')
         else:
             phoneme = phoneme[:, :MAX_LEN]
-
+        phoneme = torch.tensor(phoneme, dtype=torch.float)
         target_am = torch.tensor(target_am).to(torch.float32)
         return phoneme, target_am
 
@@ -109,7 +109,7 @@ if __name__ == "__main__":
 
     for i, data in enumerate(train_loader):
         phoneme, target_am = data
-        sns.heatmap(phoneme[0], cmap="rainbow")
-        plt.show()
+        # sns.heatmap(phoneme[0], cmap="rainbow")
+        # plt.show()
         print(phoneme.shape, target_am.shape)
         # break
