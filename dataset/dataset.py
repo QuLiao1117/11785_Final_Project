@@ -5,13 +5,16 @@ import torch.nn.functional as F
 from torch.utils.data import Dataset, DataLoader
 import pandas as pd
 import os
+os.environ["KMP_DUPLICATE_LIB_OK"]="TRUE"
+import seaborn as sns
+import matplotlib.pyplot as plt
 import random
 import torchaudio
 from torchaudio import transforms
 
 class AudioDataset(torch.utils.data.Dataset):
 
-    def __init__(self, data_path, am_path, gender = "female", phoneme_idx = 4, am_idx = 1, MAX_LEN = 44100 * 2, partition = "train"):
+    def __init__(self, data_path, am_path, gender = "female", phoneme_idx = 4, am_idx = 1, MAX_LEN = 128, partition = "train"):
         """
         :param data_path: the root path of phonemes
         :param am_path: the path of am (.csv)
@@ -55,20 +58,6 @@ class AudioDataset(torch.utils.data.Dataset):
         spec = transforms.AmplitudeToDB(top_db=top_db)(spec)
         return spec
 
-    def padding(self, phoneme):
-        if len(phoneme) < self.MAX_LEN:
-            pad_begin_len = random.randint(0, self.MAX_LEN - len(phoneme))
-            pad_end_len = self.MAX_LEN - len(phoneme) - pad_begin_len
-
-            # Pad with 0s
-            pad_begin = np.zeros(pad_begin_len)
-            pad_end = np.zeros(pad_end_len)
-
-            phoneme = np.concatenate((pad_begin, phoneme, pad_end), 0)
-        else:
-            phoneme = phoneme[:self.MAX_LEN]
-        return phoneme
-
     def __getitem__(self, ind):
         item_filename = self.phoneme_list[ind]
         item_full_path = "/".join([self.target_phoneme_path, item_filename])
@@ -82,10 +71,17 @@ class AudioDataset(torch.utils.data.Dataset):
             target_am = 0.
 
         # padding
-        phoneme = self.padding(phoneme)
         phoneme = torch.tensor(phoneme, dtype=torch.float) #.reshape(1, -1)
         # apply mel transform
         phoneme = self.spectro_gram(phoneme)
+
+        std, mean = torch.std_mean(phoneme, unbiased=False, dim=0)
+        phoneme = (phoneme - mean) / (std + 1e-6)
+
+        if len(phoneme[0]) < MAX_LEN:
+            phoneme = np.pad(phoneme, ((0, 0), (0, MAX_LEN - len(phoneme[0]))), 'symmetric')
+        else:
+            phoneme = phoneme[:, :MAX_LEN]
 
         target_am = torch.tensor(target_am)
         return phoneme, target_am
@@ -94,11 +90,11 @@ class AudioDataset(torch.utils.data.Dataset):
 
 if __name__ == "__main__":
     default_root_path = "D:/File/study/CMU/11785/project/penstate_data/extract_phoneme"
-    gender = "female_processed"
-    phoneme_idx = 10
-    am_path = "D:/File/study/CMU/11785/project/penstate_data/AMs_unnormalized.csv"
+    gender = "female"
+    phoneme_idx = 13
+    am_path = "D:/File/study/CMU/11785/project/penstate_data/AMs_final.csv"
     am_idx = 20
-    MAX_LEN = 44100 * 3
+    MAX_LEN = 32
     batch_size = 64
 
     train_data = AudioDataset(data_path=default_root_path,
@@ -113,5 +109,7 @@ if __name__ == "__main__":
 
     for i, data in enumerate(train_loader):
         phoneme, target_am = data
+        sns.heatmap(phoneme[0], cmap="rainbow")
+        plt.show()
         print(phoneme.shape, target_am.shape)
         # break
