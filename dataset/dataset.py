@@ -83,7 +83,7 @@ class AudioDataset(torch.utils.data.Dataset):
         else:
             phoneme = phoneme[:, :MAX_LEN]
 
-        target_am = torch.tensor(target_am)
+        target_am = torch.tensor(target_am).to(torch.float32)
         return phoneme, target_am
 
 
